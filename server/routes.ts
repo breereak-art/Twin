@@ -14,24 +14,13 @@ if (process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL) {
 
 // Helper function to call AI using ADK-TS AgentBuilder
 async function callAI(systemPrompt: string, userMessage: string): Promise<string> {
-  const { runner } = await AgentBuilder
+  const response = await AgentBuilder
     .create("twin_assistant")
     .withModel("claude-sonnet-4-5")
     .withInstruction(systemPrompt)
-    .build();
+    .ask(userMessage);
   
-  let result = "";
-  for await (const event of runner.runAsync({
-    userId: "system",
-    sessionId: "session-" + Date.now(),
-    newMessage: { parts: [{ text: userMessage }] }
-  })) {
-    const content = event.content;
-    if (content?.parts?.[0] && "text" in content.parts[0]) {
-      result += content.parts[0].text;
-    }
-  }
-  return result;
+  return typeof response === "string" ? response : (response as any).result || "";
 }
 
 // Demo user ID for development (before auth is fully implemented)
