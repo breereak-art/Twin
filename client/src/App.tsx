@@ -15,6 +15,7 @@ import Remixer from "@/pages/remixer";
 import Repurpose from "@/pages/repurpose";
 import Schedule from "@/pages/schedule";
 import Analytics from "@/pages/analytics";
+import Pricing from "@/pages/pricing";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -27,6 +28,7 @@ function Router() {
       <Route path="/repurpose" component={Repurpose} />
       <Route path="/schedule" component={Schedule} />
       <Route path="/analytics" component={Analytics} />
+      <Route path="/pricing" component={Pricing} />
       <Route component={NotFound} />
     </Switch>
   );

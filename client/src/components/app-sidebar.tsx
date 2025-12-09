@@ -1,4 +1,4 @@
-import { Home, Mic2, FileText, Shuffle, Repeat, Calendar, BarChart3, Settings, Sparkles } from "lucide-react";
+import { Home, Mic2, FileText, Shuffle, Repeat, Calendar, BarChart3, Settings, Sparkles, CreditCard } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -22,6 +22,7 @@ const menuItems = [
   { title: "Repurpose", url: "/repurpose", icon: Repeat },
   { title: "Schedule", url: "/schedule", icon: Calendar },
   { title: "Analytics", url: "/analytics", icon: BarChart3 },
+  { title: "Pricing", url: "/pricing", icon: CreditCard },
 ];
 
 export function AppSidebar() {
