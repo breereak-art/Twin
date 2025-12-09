@@ -19,6 +19,7 @@ import Pricing from "@/pages/pricing";
 import Connect from "@/pages/connect";
 import Images from "@/pages/images";
 import Reply from "@/pages/reply";
+import Agency from "@/pages/agency";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -35,6 +36,7 @@ function Router() {
       <Route path="/connect" component={Connect} />
       <Route path="/images" component={Images} />
       <Route path="/reply" component={Reply} />
+      <Route path="/agency" component={Agency} />
       <Route component={NotFound} />
     </Switch>
   );

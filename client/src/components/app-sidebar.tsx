@@ -1,4 +1,4 @@
-import { Home, Mic2, FileText, Shuffle, Repeat, Calendar, BarChart3, Settings, Sparkles, CreditCard, Link2, ImageIcon, MessageCircle } from "lucide-react";
+import { Home, Mic2, FileText, Shuffle, Repeat, Calendar, BarChart3, Settings, Sparkles, CreditCard, Link2, ImageIcon, MessageCircle, Building2 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -26,6 +26,7 @@ const menuItems = [
   { title: "Connect", url: "/connect", icon: Link2 },
   { title: "Images", url: "/images", icon: ImageIcon },
   { title: "Reply Guy", url: "/reply", icon: MessageCircle },
+  { title: "Agency", url: "/agency", icon: Building2 },
 ];
 
 export function AppSidebar() {
