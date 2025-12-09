@@ -16,6 +16,7 @@ import Repurpose from "@/pages/repurpose";
 import Schedule from "@/pages/schedule";
 import Analytics from "@/pages/analytics";
 import Pricing from "@/pages/pricing";
+import Connect from "@/pages/connect";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -29,6 +30,7 @@ function Router() {
       <Route path="/schedule" component={Schedule} />
       <Route path="/analytics" component={Analytics} />
       <Route path="/pricing" component={Pricing} />
+      <Route path="/connect" component={Connect} />
       <Route component={NotFound} />
     </Switch>
   );
