@@ -18,6 +18,7 @@ import Analytics from "@/pages/analytics";
 import Pricing from "@/pages/pricing";
 import Connect from "@/pages/connect";
 import Images from "@/pages/images";
+import Reply from "@/pages/reply";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -33,6 +34,7 @@ function Router() {
       <Route path="/pricing" component={Pricing} />
       <Route path="/connect" component={Connect} />
       <Route path="/images" component={Images} />
+      <Route path="/reply" component={Reply} />
       <Route component={NotFound} />
     </Switch>
   );
