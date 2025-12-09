@@ -12,6 +12,7 @@ import Home from "@/pages/home";
 import VoicePacks from "@/pages/voice-packs";
 import Compose from "@/pages/compose";
 import Remixer from "@/pages/remixer";
+import Repurpose from "@/pages/repurpose";
 import Schedule from "@/pages/schedule";
 import Analytics from "@/pages/analytics";
 import NotFound from "@/pages/not-found";
@@ -23,6 +24,7 @@ function Router() {
       <Route path="/voice-packs" component={VoicePacks} />
       <Route path="/compose" component={Compose} />
       <Route path="/remixer" component={Remixer} />
+      <Route path="/repurpose" component={Repurpose} />
       <Route path="/schedule" component={Schedule} />
       <Route path="/analytics" component={Analytics} />
       <Route component={NotFound} />

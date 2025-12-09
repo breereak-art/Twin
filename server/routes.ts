@@ -314,6 +314,116 @@ Respond with a JSON object containing:
     }
   });
 
+  // Thread Repurpose API - Convert threads to other formats
+  app.post("/api/threads/repurpose", async (req, res) => {
+    try {
+      const { content, targetFormat, voicePackId } = req.body;
+
+      if (!content || !Array.isArray(content) || content.length === 0) {
+        return res.status(400).json({ error: "Thread content is required (array of tweets)" });
+      }
+
+      const validFormats = ["linkedin", "newsletter", "script"];
+      if (!targetFormat || !validFormats.includes(targetFormat)) {
+        return res.status(400).json({ error: `Target format must be one of: ${validFormats.join(", ")}` });
+      }
+
+      // Get voice pack if specified
+      let voiceContext = "";
+      if (voicePackId) {
+        const voicePack = await storage.getVoicePack(voicePackId);
+        if (voicePack) {
+          voiceContext = `
+Writing Style: ${voicePack.style}
+Voice Description: ${voicePack.description || "No description"}
+${voicePack.writingSamples && voicePack.writingSamples.length > 0 
+  ? `Sample Writings:\n${voicePack.writingSamples.join("\n---\n")}` 
+  : ""}
+          `.trim();
+        }
+      }
+
+      const formatInstructions = getFormatInstructions(targetFormat);
+      const threadText = content.join("\n\n");
+
+      const systemPrompt = `You are Twin, an AI that repurposes Twitter threads into other content formats while maintaining the original voice and message.
+
+${voiceContext ? `USER'S VOICE PROFILE:\n${voiceContext}\n\n` : ""}
+
+Your task is to convert the following Twitter thread into a ${targetFormat} format.
+
+${formatInstructions}
+
+RULES:
+1. Preserve the core message and insights from the original thread
+2. Adapt the structure and tone for the target platform
+3. Expand on ideas where appropriate for the new format
+4. Keep the authentic voice - no corporate jargon
+5. Make it engaging and valuable for the target audience
+
+Respond with a JSON object containing:
+{
+  "title": "A compelling title for the content",
+  "content": "The full repurposed content as a single string",
+  "summary": "A 1-2 sentence summary of the content"
+}`;
+
+      const response = await anthropic.messages.create({
+        model: "claude-sonnet-4-5",
+        max_tokens: 4096,
+        messages: [
+          {
+            role: "user",
+            content: `ORIGINAL TWITTER THREAD:\n${threadText}`,
+          },
+        ],
+        system: systemPrompt,
+      });
+
+      // Parse the response
+      const responseContent = response.content[0];
+      if (responseContent.type !== "text") {
+        throw new Error("Unexpected response type");
+      }
+
+      let result;
+      try {
+        result = JSON.parse(responseContent.text);
+      } catch {
+        // Try to extract JSON from text
+        const jsonMatch = responseContent.text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            result = JSON.parse(jsonMatch[0]);
+          } catch {
+            throw new Error("Failed to parse extracted JSON");
+          }
+        } else {
+          throw new Error("No valid JSON found in response");
+        }
+      }
+
+      // Validate required fields
+      if (!result.content) {
+        throw new Error("Response missing content field");
+      }
+
+      const wordCount = result.content.split(/\s+/).filter((w: string) => w.length > 0).length;
+
+      res.json({
+        format: targetFormat,
+        title: result.title || "Untitled",
+        content: result.content,
+        summary: result.summary || "",
+        wordCount,
+      });
+    } catch (error) {
+      console.error("Repurpose error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ error: `Failed to repurpose thread: ${errorMessage}` });
+    }
+  });
+
   // Analytics API
   app.get("/api/analytics", async (req, res) => {
     try {
@@ -335,6 +445,36 @@ Respond with a JSON object containing:
   });
 
   return httpServer;
+}
+
+function getFormatInstructions(format: string): string {
+  const instructions: Record<string, string> = {
+    linkedin: `FORMAT: LinkedIn Post
+- Professional but personable tone
+- Start with a hook that grabs attention
+- Use line breaks for readability (one idea per paragraph)
+- Include a call-to-action at the end
+- Aim for 150-300 words
+- Can include bullet points for lists
+- End with a question or invitation to engage`,
+    newsletter: `FORMAT: Email Newsletter
+- Friendly, conversational tone like writing to a friend
+- Include a compelling subject line suggestion at the top
+- Structure with clear sections: intro, main content, takeaways
+- Expand on ideas with examples and context
+- Aim for 500-800 words
+- Include a personal sign-off
+- Add P.S. with a key takeaway or call-to-action`,
+    script: `FORMAT: Video/Podcast Script
+- Conversational, spoken-word style
+- Start with a hook that captures attention in first 10 seconds
+- Include [PAUSE] markers for dramatic effect
+- Structure: Hook → Problem → Insights → Takeaways → CTA
+- Use short sentences for clarity when spoken
+- Aim for 400-600 words (about 3-4 minutes spoken)
+- End with a strong call-to-action`,
+  };
+  return instructions[format] || instructions.linkedin;
 }
 
 function getHookInstructions(hookType: string): string {
