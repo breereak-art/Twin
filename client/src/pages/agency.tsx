@@ -356,7 +356,7 @@ export default function Agency() {
               </SelectTrigger>
               <SelectContent>
                 {voicePacks.length === 0 ? (
-                  <SelectItem value="" disabled>No Voice Packs available</SelectItem>
+                  <div className="px-2 py-4 text-sm text-muted-foreground text-center">No Voice Packs available</div>
                 ) : (
                   voicePacks.map((pack) => (
                     <SelectItem key={pack.id} value={pack.id}>

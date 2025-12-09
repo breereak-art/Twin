@@ -119,12 +119,12 @@ export default function Reply() {
 
             <div>
               <label className="text-sm font-medium mb-2 block">Voice Pack (optional)</label>
-              <Select value={selectedVoicePack} onValueChange={setSelectedVoicePack}>
+              <Select value={selectedVoicePack} onValueChange={(v) => setSelectedVoicePack(v === "none" ? "" : v)}>
                 <SelectTrigger data-testid="select-voice-pack">
                   <SelectValue placeholder="Use your voice" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No voice pack</SelectItem>
+                  <SelectItem value="none">No voice pack</SelectItem>
                   {voicePacks.map((pack) => (
                     <SelectItem key={pack.id} value={pack.id}>
                       {pack.name}
