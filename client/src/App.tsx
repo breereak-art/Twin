@@ -21,6 +21,7 @@ import Images from "@/pages/images";
 import Reply from "@/pages/reply";
 import Agency from "@/pages/agency";
 import Coaching from "@/pages/coaching";
+import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -39,6 +40,7 @@ function Router() {
       <Route path="/reply" component={Reply} />
       <Route path="/agency" component={Agency} />
       <Route path="/coaching" component={Coaching} />
+      <Route path="/settings" component={Settings} />
       <Route component={NotFound} />
     </Switch>
   );
