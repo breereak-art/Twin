@@ -139,7 +139,7 @@ ${hookInstructions}
 Respond with ONLY a JSON array of strings, each string being one tweet in the thread.`;
 
       const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-5",
         max_tokens: 1024,
         messages: [
           {
@@ -176,6 +176,141 @@ Respond with ONLY a JSON array of strings, each string being one tweet in the th
     } catch (error) {
       console.error("Generation error:", error);
       res.status(500).json({ error: "Failed to generate thread" });
+    }
+  });
+
+  // Thread Remix API - Analyze and remix viral threads
+  app.post("/api/threads/remix", async (req, res) => {
+    try {
+      const { originalThread, newTopic, voicePackId } = req.body;
+
+      if (!originalThread || !newTopic) {
+        return res.status(400).json({ error: "Original thread and new topic are required" });
+      }
+
+      // Get voice pack if specified
+      let voiceContext = "";
+      if (voicePackId) {
+        const voicePack = await storage.getVoicePack(voicePackId);
+        if (voicePack) {
+          voiceContext = `
+Writing Style: ${voicePack.style}
+Voice Description: ${voicePack.description || "No description"}
+${voicePack.writingSamples && voicePack.writingSamples.length > 0 
+  ? `Sample Writings:\n${voicePack.writingSamples.join("\n---\n")}` 
+  : ""}
+          `.trim();
+        }
+      }
+
+      const systemPrompt = `You are Twin, an AI that analyzes viral Twitter threads and remixes them into new topics while preserving the winning structure.
+
+${voiceContext ? `USER'S VOICE PROFILE:\n${voiceContext}\n\n` : ""}
+
+Your task:
+1. Analyze the ORIGINAL THREAD to identify:
+   - Hook type (negative, numbers, story, contrarian, list)
+   - Flow pattern (how ideas progress)
+   - Sentence structures and rhythm
+   - Emotional hooks and tension points
+   - Call-to-action style
+
+2. Create a NEW THREAD about the given topic that:
+   - Uses the EXACT same structural pattern
+   - Matches the tweet count of the original
+   - Mirrors the hook style and progression
+   - Adapts emotional beats to the new topic
+   - Sounds authentic and human
+
+RULES:
+- Each tweet must be under 280 characters
+- NO hashtags, NO emojis
+- Preserve the original's pacing and momentum
+- Make it feel like the same author wrote both threads
+
+Respond with a JSON object containing:
+{
+  "analysis": {
+    "hookType": "string",
+    "tweetCount": number,
+    "pattern": "brief description of the structural pattern",
+    "keyElements": ["list of key structural elements identified"]
+  },
+  "remixedThread": ["array of tweets"]
+}`;
+
+      const response = await anthropic.messages.create({
+        model: "claude-sonnet-4-5",
+        max_tokens: 2048,
+        messages: [
+          {
+            role: "user",
+            content: `ORIGINAL THREAD:\n${originalThread}\n\nNEW TOPIC: ${newTopic}`,
+          },
+        ],
+        system: systemPrompt,
+      });
+
+      // Parse the response
+      const content = response.content[0];
+      if (content.type !== "text") {
+        throw new Error("Unexpected response type");
+      }
+
+      let result;
+      try {
+        result = JSON.parse(content.text);
+      } catch {
+        // Try to extract JSON from text with multiple patterns
+        const jsonMatch = content.text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            result = JSON.parse(jsonMatch[0]);
+          } catch {
+            throw new Error("Failed to parse extracted JSON");
+          }
+        } else {
+          throw new Error("No valid JSON found in response");
+        }
+      }
+
+      // Validate required fields
+      if (!result.analysis || !result.remixedThread) {
+        throw new Error("Response missing required fields (analysis or remixedThread)");
+      }
+
+      if (!Array.isArray(result.remixedThread) || result.remixedThread.length === 0) {
+        throw new Error("remixedThread must be a non-empty array");
+      }
+
+      // Ensure analysis has required fields with defaults
+      const analysis = {
+        hookType: result.analysis.hookType || "unknown",
+        tweetCount: result.remixedThread.length,
+        pattern: result.analysis.pattern || "Pattern analysis not available",
+        keyElements: Array.isArray(result.analysis.keyElements) ? result.analysis.keyElements : [],
+      };
+
+      // Validate and truncate tweets if needed
+      const tweets = result.remixedThread.map((tweet: unknown, index: number) => {
+        if (typeof tweet !== "string") {
+          return `Tweet ${index + 1}: Content unavailable`;
+        }
+        return tweet;
+      });
+
+      // Calculate cringe score
+      const cringeScore = calculateCringeScore(tweets);
+
+      res.json({
+        analysis,
+        content: tweets,
+        cringeScore,
+      });
+    } catch (error) {
+      console.error("Remix error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ error: `Failed to remix thread: ${errorMessage}` });
     }
   });
 

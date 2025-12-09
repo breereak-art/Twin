@@ -1,4 +1,4 @@
-import { Home, Mic2, FileText, Calendar, BarChart3, Settings, Sparkles } from "lucide-react";
+import { Home, Mic2, FileText, Shuffle, Calendar, BarChart3, Settings, Sparkles } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -18,6 +18,7 @@ const menuItems = [
   { title: "Home", url: "/", icon: Home },
   { title: "Voice Packs", url: "/voice-packs", icon: Mic2 },
   { title: "Compose", url: "/compose", icon: FileText },
+  { title: "Remixer", url: "/remixer", icon: Shuffle },
   { title: "Schedule", url: "/schedule", icon: Calendar },
   { title: "Analytics", url: "/analytics", icon: BarChart3 },
 ];
