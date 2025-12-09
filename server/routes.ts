@@ -2,13 +2,27 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertVoicePackSchema, insertThreadSchema, insertConnectedAccountSchema, insertAgencyClientSchema, insertClientVoicePackSchema } from "@shared/schema";
-import Anthropic from "@anthropic-ai/sdk";
+import { AgentBuilder } from "@iqai/adk";
 
-// Initialize Anthropic client using Replit AI Integrations
-const anthropic = new Anthropic({
-  baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
-  apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
-});
+// Configure ADK to use Replit AI Integrations
+if (process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY && !process.env.ANTHROPIC_API_KEY) {
+  process.env.ANTHROPIC_API_KEY = process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
+}
+if (process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL && !process.env.ANTHROPIC_BASE_URL) {
+  process.env.ANTHROPIC_BASE_URL = process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL;
+}
+
+// Helper function to call AI using ADK AgentBuilder
+async function callAI(systemPrompt: string, userMessage: string): Promise<string> {
+  const { runner } = await AgentBuilder
+    .create("twin-ai")
+    .withModel("claude-sonnet-4-5")
+    .withInstruction(systemPrompt)
+    .build();
+  
+  const result = await runner.runAsync({ userId: "system", message: userMessage });
+  return result || "";
+}
 
 // Demo user ID for development (before auth is fully implemented)
 const DEMO_USER_ID = "demo-user";
@@ -138,30 +152,15 @@ ${hookInstructions}
 
 Respond with ONLY a JSON array of strings, each string being one tweet in the thread.`;
 
-      const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-5",
-        max_tokens: 1024,
-        messages: [
-          {
-            role: "user",
-            content: `Generate a Twitter thread about: ${topic}`,
-          },
-        ],
-        system: systemPrompt,
-      });
+      const responseText = await callAI(systemPrompt, `Generate a Twitter thread about: ${topic}`);
 
       // Parse the response
-      const content = response.content[0];
-      if (content.type !== "text") {
-        throw new Error("Unexpected response type");
-      }
-
       let tweets: string[];
       try {
-        tweets = JSON.parse(content.text);
+        tweets = JSON.parse(responseText);
       } catch {
         // If parsing fails, try to extract from text
-        const match = content.text.match(/\[[\s\S]*\]/);
+        const match = responseText.match(/\[[\s\S]*\]/);
         if (match) {
           tweets = JSON.parse(match[0]);
         } else {
@@ -239,30 +238,15 @@ Respond with a JSON object containing:
   "remixedThread": ["array of tweets"]
 }`;
 
-      const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-5",
-        max_tokens: 2048,
-        messages: [
-          {
-            role: "user",
-            content: `ORIGINAL THREAD:\n${originalThread}\n\nNEW TOPIC: ${newTopic}`,
-          },
-        ],
-        system: systemPrompt,
-      });
+      const responseText = await callAI(systemPrompt, `ORIGINAL THREAD:\n${originalThread}\n\nNEW TOPIC: ${newTopic}`);
 
       // Parse the response
-      const content = response.content[0];
-      if (content.type !== "text") {
-        throw new Error("Unexpected response type");
-      }
-
       let result;
       try {
-        result = JSON.parse(content.text);
+        result = JSON.parse(responseText);
       } catch {
         // Try to extract JSON from text with multiple patterns
-        const jsonMatch = content.text.match(/\{[\s\S]*\}/);
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           try {
             result = JSON.parse(jsonMatch[0]);
@@ -368,30 +352,15 @@ Respond with a JSON object containing:
   "summary": "A 1-2 sentence summary of the content"
 }`;
 
-      const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-5",
-        max_tokens: 4096,
-        messages: [
-          {
-            role: "user",
-            content: `ORIGINAL TWITTER THREAD:\n${threadText}`,
-          },
-        ],
-        system: systemPrompt,
-      });
+      const responseText = await callAI(systemPrompt, `ORIGINAL TWITTER THREAD:\n${threadText}`);
 
       // Parse the response
-      const responseContent = response.content[0];
-      if (responseContent.type !== "text") {
-        throw new Error("Unexpected response type");
-      }
-
       let result;
       try {
-        result = JSON.parse(responseContent.text);
+        result = JSON.parse(responseText);
       } catch {
         // Try to extract JSON from text
-        const jsonMatch = responseContent.text.match(/\{[\s\S]*\}/);
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           try {
             result = JSON.parse(jsonMatch[0]);
@@ -489,28 +458,13 @@ Generate 3 different reply options with varying approaches.
 
 Respond with a JSON array of 3 reply strings.`;
 
-      const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-5",
-        max_tokens: 1024,
-        messages: [
-          {
-            role: "user",
-            content: `Generate replies to this tweet:\n\n"${tweetContent}"`,
-          },
-        ],
-        system: systemPrompt,
-      });
-
-      const content = response.content[0];
-      if (content.type !== "text") {
-        throw new Error("Unexpected response type");
-      }
+      const responseText = await callAI(systemPrompt, `Generate replies to this tweet:\n\n"${tweetContent}"`);
 
       let replies: string[];
       try {
-        replies = JSON.parse(content.text);
+        replies = JSON.parse(responseText);
       } catch {
-        const match = content.text.match(/\[[\s\S]*\]/);
+        const match = responseText.match(/\[[\s\S]*\]/);
         if (match) {
           replies = JSON.parse(match[0]);
         } else {
@@ -559,28 +513,13 @@ Respond with a JSON object:
   "topOpportunity": "biggest area for improvement"
 }`;
 
-      const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-5",
-        max_tokens: 1024,
-        messages: [
-          {
-            role: "user",
-            content: `User has ${totalThreads} threads with average engagement of ${avgEngagement}. Recent thread topics: ${threads.slice(0, 5).map(t => t.topic).join(", ") || "No threads yet"}`,
-          },
-        ],
-        system: systemPrompt,
-      });
-
-      const content = response.content[0];
-      if (content.type !== "text") {
-        throw new Error("Unexpected response type");
-      }
+      const responseText = await callAI(systemPrompt, `User has ${totalThreads} threads with average engagement of ${avgEngagement}. Recent thread topics: ${threads.slice(0, 5).map(t => t.topic).join(", ") || "No threads yet"}`);
 
       let result;
       try {
-        result = JSON.parse(content.text);
+        result = JSON.parse(responseText);
       } catch {
-        const match = content.text.match(/\{[\s\S]*\}/);
+        const match = responseText.match(/\{[\s\S]*\}/);
         if (match) {
           result = JSON.parse(match[0]);
         } else {
