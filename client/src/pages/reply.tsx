@@ -1,41 +1,63 @@
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { MessageCircle, Brain, Zap, Target, MessageSquare, Send, Lightbulb, TrendingUp } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { MessageCircle, Zap, Copy, RefreshCw, Check, Sparkles } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import type { VoicePack } from "@shared/schema";
 
-const replyFeatures = [
-  {
-    id: "context-analysis",
-    title: "Context Analysis",
-    description: "AI analyzes tweet context, sentiment, and intent to craft relevant responses",
-    icon: Brain,
-    features: ["Sentiment detection", "Topic extraction", "Intent analysis"],
-  },
-  {
-    id: "voice-matching",
-    title: "Voice Matching",
-    description: "Replies are generated in your unique voice using your trained Voice Pack",
-    icon: Target,
-    features: ["Style matching", "Tone adaptation", "Vocabulary alignment"],
-  },
-  {
-    id: "quick-replies",
-    title: "Quick Replies",
-    description: "Generate multiple reply options instantly for fast engagement",
-    icon: Zap,
-    features: ["3 reply options", "One-click copy", "Edit before posting"],
-  },
-  {
-    id: "engagement-boost",
-    title: "Engagement Boost",
-    description: "Craft replies designed to spark conversation and increase visibility",
-    icon: TrendingUp,
-    features: ["Hook phrases", "Question prompts", "Call-to-action"],
-  },
+const replyTones = [
+  { value: "friendly", label: "Friendly", description: "Warm and conversational" },
+  { value: "witty", label: "Witty", description: "Clever with a touch of humor" },
+  { value: "professional", label: "Professional", description: "Polished and insightful" },
+  { value: "supportive", label: "Supportive", description: "Encouraging and empathetic" },
+  { value: "curious", label: "Curious", description: "Thoughtful follow-up questions" },
 ];
 
 export default function Reply() {
+  const [tweetContent, setTweetContent] = useState("");
+  const [selectedTone, setSelectedTone] = useState("friendly");
+  const [selectedVoicePack, setSelectedVoicePack] = useState<string>("");
+  const [generatedReplies, setGeneratedReplies] = useState<string[]>([]);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const { toast } = useToast();
+
+  const { data: voicePacks = [] } = useQuery<VoicePack[]>({
+    queryKey: ["/api/voice-packs"],
+  });
+
+  const generateMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/reply/generate", {
+        tweetContent,
+        replyTone: selectedTone,
+        voicePackId: selectedVoicePack || undefined,
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setGeneratedReplies(data.replies || []);
+    },
+    onError: () => {
+      toast({
+        title: "Generation failed",
+        description: "Failed to generate replies. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleCopy = async (text: string, index: number) => {
+    await navigator.clipboard.writeText(text);
+    setCopiedIndex(index);
+    toast({ title: "Copied to clipboard" });
+    setTimeout(() => setCopiedIndex(null), 2000);
+  };
+
   return (
     <div className="container max-w-4xl py-12 px-4">
       <div className="text-center mb-12">
@@ -44,138 +66,149 @@ export default function Reply() {
             <MessageCircle className="h-8 w-8 text-primary" />
           </div>
         </div>
-        <div className="flex items-center justify-center gap-3 mb-4 flex-wrap">
-          <h1 className="text-4xl font-bold" data-testid="text-reply-title">
-            Reply Guy
-          </h1>
-          <Badge variant="secondary" data-testid="badge-coming-soon">
-            Coming Soon
-          </Badge>
-        </div>
+        <h1 className="text-4xl font-bold mb-4" data-testid="text-reply-title">
+          Reply Guy
+        </h1>
         <p className="text-lg text-muted-foreground max-w-2xl mx-auto" data-testid="text-reply-subtitle">
-          Never miss an engagement opportunity. Paste any tweet and get AI-powered reply 
-          suggestions that match your voice and maximize engagement.
+          Generate authentic, engaging replies to any tweet. Craft responses that 
+          drive conversations and grow your network - all in your unique voice.
         </p>
       </div>
 
-      <Card className="mb-8 border-dashed" data-testid="card-tweet-input">
+      <Card className="mb-8" data-testid="card-tweet-input">
         <CardHeader>
           <div className="flex items-center gap-3 flex-wrap">
-            <MessageSquare className="h-5 w-5 text-muted-foreground" />
-            <CardTitle className="text-lg">Tweet to Reply To</CardTitle>
+            <Zap className="h-5 w-5 text-muted-foreground" />
+            <CardTitle className="text-lg">Generate Reply</CardTitle>
           </div>
           <CardDescription>
-            Paste a tweet URL or content to generate context-aware replies
+            Paste a tweet and get AI-powered reply suggestions
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Textarea 
-            placeholder="Paste tweet URL or tweet content here..."
-            className="min-h-24 resize-none"
-            disabled
-            data-testid="input-tweet-content"
-          />
-          <div className="flex flex-wrap gap-3">
-            <Button disabled data-testid="button-analyze">
-              <Brain className="h-4 w-4 mr-2" />
-              Analyze Tweet
-            </Button>
-            <Button variant="outline" disabled data-testid="button-generate-replies">
-              <Zap className="h-4 w-4 mr-2" />
-              Generate Replies
-            </Button>
+          <div>
+            <label className="text-sm font-medium mb-2 block">Tweet to reply to</label>
+            <Textarea
+              placeholder="Paste the tweet you want to reply to..."
+              value={tweetContent}
+              onChange={(e) => setTweetContent(e.target.value)}
+              className="min-h-[100px]"
+              data-testid="input-tweet-content"
+            />
           </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <label className="text-sm font-medium mb-2 block">Reply Tone</label>
+              <Select value={selectedTone} onValueChange={setSelectedTone}>
+                <SelectTrigger data-testid="select-tone">
+                  <SelectValue placeholder="Select tone" />
+                </SelectTrigger>
+                <SelectContent>
+                  {replyTones.map((tone) => (
+                    <SelectItem key={tone.value} value={tone.value}>
+                      <div className="flex flex-col">
+                        <span>{tone.label}</span>
+                        <span className="text-xs text-muted-foreground">{tone.description}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium mb-2 block">Voice Pack (optional)</label>
+              <Select value={selectedVoicePack} onValueChange={setSelectedVoicePack}>
+                <SelectTrigger data-testid="select-voice-pack">
+                  <SelectValue placeholder="Use your voice" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">No voice pack</SelectItem>
+                  {voicePacks.map((pack) => (
+                    <SelectItem key={pack.id} value={pack.id}>
+                      {pack.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <Button
+            onClick={() => generateMutation.mutate()}
+            disabled={!tweetContent.trim() || generateMutation.isPending}
+            className="w-full"
+            data-testid="button-generate-replies"
+          >
+            {generateMutation.isPending ? (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4 mr-2" />
+                Generate Replies
+              </>
+            )}
+          </Button>
         </CardContent>
       </Card>
 
-      <Card className="mb-8 bg-muted/30 border-dashed" data-testid="card-reply-preview">
-        <CardHeader>
-          <div className="flex items-center gap-3 flex-wrap">
-            <Lightbulb className="h-5 w-5 text-muted-foreground" />
-            <CardTitle className="text-lg">AI Reply Suggestions</CardTitle>
-          </div>
-          <CardDescription>
-            Choose from multiple reply options tailored to your voice
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {[1, 2, 3].map((num) => (
-              <div 
-                key={num}
-                className="p-4 rounded-md bg-background border border-dashed flex items-center justify-between gap-4"
-                data-testid={`reply-option-${num}`}
+      {generatedReplies.length > 0 && (
+        <Card className="mb-8" data-testid="card-generated-replies">
+          <CardHeader>
+            <CardTitle className="text-lg">Generated Replies</CardTitle>
+            <CardDescription>
+              Choose a reply or use as inspiration
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {generatedReplies.map((reply, index) => (
+              <div
+                key={index}
+                className="p-4 rounded-md bg-muted/50 flex items-start gap-4"
+                data-testid={`reply-option-${index}`}
               >
                 <div className="flex-1">
-                  <p className="text-sm text-muted-foreground italic">
-                    Reply option {num} will appear here...
+                  <p className="text-sm">{reply}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {reply.length}/280 characters
                   </p>
                 </div>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" disabled data-testid={`button-copy-${num}`}>
-                    Copy
-                  </Button>
-                  <Button size="sm" disabled data-testid={`button-send-${num}`}>
-                    <Send className="h-3 w-3" />
-                  </Button>
-                </div>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => handleCopy(reply, index)}
+                  data-testid={`button-copy-${index}`}
+                >
+                  {copiedIndex === index ? (
+                    <Check className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                </Button>
               </div>
             ))}
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-6 md:grid-cols-2">
-        {replyFeatures.map((feature) => (
-          <Card 
-            key={feature.id}
-            className="relative"
-            data-testid={`card-feature-${feature.id}`}
-          >
-            <CardHeader className="flex flex-row flex-wrap items-start gap-4 space-y-0">
+        {replyTones.map((tone) => (
+          <Card key={tone.value} data-testid={`card-tone-${tone.value}`}>
+            <CardHeader className="flex flex-row flex-wrap items-center gap-4 space-y-0">
               <div className="p-3 rounded-md bg-muted">
-                <feature.icon className="h-5 w-5" />
+                <MessageCircle className="h-5 w-5" />
               </div>
               <div className="flex-1 space-y-1">
-                <CardTitle className="text-base" data-testid={`text-feature-title-${feature.id}`}>
-                  {feature.title}
-                </CardTitle>
-                <CardDescription data-testid={`text-feature-description-${feature.id}`}>
-                  {feature.description}
-                </CardDescription>
+                <CardTitle className="text-base">{tone.label}</CardTitle>
+                <CardDescription>{tone.description}</CardDescription>
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {feature.features.map((item, index) => (
-                  <Badge 
-                    key={index}
-                    variant="outline"
-                    className="text-muted-foreground"
-                    data-testid={`badge-capability-${feature.id}-${index}`}
-                  >
-                    {item}
-                  </Badge>
-                ))}
-              </div>
-            </CardContent>
           </Card>
         ))}
-      </div>
-
-      <div className="mt-12 p-6 rounded-lg bg-muted/50" data-testid="section-workflow">
-        <div className="flex items-start gap-4">
-          <MessageCircle className="h-6 w-6 text-muted-foreground shrink-0 mt-1" />
-          <div>
-            <h3 className="font-semibold mb-2" data-testid="text-workflow-title">
-              Seamless Reply Workflow
-            </h3>
-            <p className="text-sm text-muted-foreground" data-testid="text-workflow-description">
-              Copy a tweet link, paste it here, and get instant reply suggestions. Connect your 
-              Twitter account to post replies directly from Twin with one click.
-            </p>
-          </div>
-        </div>
       </div>
     </div>
   );

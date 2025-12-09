@@ -1,40 +1,45 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, Target, Lightbulb, LineChart, Trophy, ArrowUpRight, Zap, Brain } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { TrendingUp, Target, Lightbulb, LineChart, Trophy, RefreshCw, Brain, Zap } from "lucide-react";
+import { queryClient } from "@/lib/queryClient";
 
-const coachingFeatures = [
-  {
-    id: "performance-analysis",
-    title: "Performance Analysis",
-    description: "Deep dive into your content metrics with AI-powered insights and trend detection",
-    icon: LineChart,
-    features: ["Engagement patterns", "Best posting times", "Audience insights"],
-  },
-  {
-    id: "ai-coaching-tips",
-    title: "AI Coaching Tips",
-    description: "Get personalized recommendations to improve your content strategy",
-    icon: Lightbulb,
-    features: ["Writing improvements", "Hook optimization", "Voice refinement"],
-  },
-  {
-    id: "content-recommendations",
-    title: "Content Recommendations",
-    description: "AI suggests topics and formats based on what's working for you",
-    icon: Target,
-    features: ["Trending topics", "Format suggestions", "Optimal length"],
-  },
-  {
-    id: "growth-insights",
-    title: "Growth Insights",
-    description: "Track your progress and see how your content strategy is evolving",
-    icon: TrendingUp,
-    features: ["Weekly reports", "Growth metrics", "Milestone tracking"],
-  },
-];
+interface CoachingTip {
+  title: string;
+  tip: string;
+  category: string;
+}
+
+interface CoachingData {
+  tips: CoachingTip[];
+  contentScore: number;
+  topStrength: string;
+  topOpportunity: string;
+  stats: {
+    totalThreads: number;
+    avgEngagement: number;
+    totalEngagement: number;
+  };
+}
+
+const categoryIcons: Record<string, typeof Lightbulb> = {
+  hooks: Zap,
+  engagement: TrendingUp,
+  voice: Target,
+  timing: LineChart,
+};
 
 export default function Coaching() {
+  const { data: coaching, isLoading, refetch, isFetching } = useQuery<CoachingData>({
+    queryKey: ["/api/coaching/tips"],
+  });
+
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/coaching/tips"] });
+    refetch();
+  };
+
   return (
     <div className="container max-w-4xl py-12 px-4">
       <div className="text-center mb-12">
@@ -43,132 +48,177 @@ export default function Coaching() {
             <Brain className="h-8 w-8 text-primary" />
           </div>
         </div>
-        <div className="flex items-center justify-center gap-3 mb-4 flex-wrap">
-          <h1 className="text-4xl font-bold" data-testid="text-coaching-title">
-            AI Coach
-          </h1>
-          <Badge variant="secondary" data-testid="badge-coming-soon">
-            Coming Soon
-          </Badge>
-        </div>
+        <h1 className="text-4xl font-bold mb-4" data-testid="text-coaching-title">
+          AI Coach
+        </h1>
         <p className="text-lg text-muted-foreground max-w-2xl mx-auto" data-testid="text-coaching-subtitle">
           Your personal AI content coach. Get actionable feedback on your threads, 
           learn what's working, and receive personalized tips to grow your audience.
         </p>
       </div>
 
-      <Card className="mb-8 border-dashed" data-testid="card-performance-overview">
+      <Card className="mb-8" data-testid="card-performance-overview">
         <CardHeader>
-          <div className="flex items-center gap-3 flex-wrap">
-            <Trophy className="h-5 w-5 text-muted-foreground" />
-            <CardTitle className="text-lg">Performance Overview</CardTitle>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3">
+              <Trophy className="h-5 w-5 text-muted-foreground" />
+              <CardTitle className="text-lg">Performance Overview</CardTitle>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isFetching}
+              data-testid="button-refresh-coaching"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
           </div>
           <CardDescription>
             Your content performance at a glance
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-3 gap-4 mb-4">
-            <div className="text-center p-4 rounded-md bg-muted/50" data-testid="stat-avg-engagement">
-              <p className="text-2xl font-bold text-muted-foreground">--</p>
-              <p className="text-sm text-muted-foreground">Avg Engagement</p>
+          {isLoading ? (
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="text-center p-4 rounded-md bg-muted/50 animate-pulse">
+                  <div className="h-8 bg-muted rounded mb-2" />
+                  <div className="h-4 bg-muted rounded w-20 mx-auto" />
+                </div>
+              ))}
             </div>
-            <div className="text-center p-4 rounded-md bg-muted/50" data-testid="stat-growth-rate">
-              <p className="text-2xl font-bold text-muted-foreground">--</p>
-              <p className="text-sm text-muted-foreground">Growth Rate</p>
-            </div>
-            <div className="text-center p-4 rounded-md bg-muted/50" data-testid="stat-content-score">
-              <p className="text-2xl font-bold text-muted-foreground">--</p>
-              <p className="text-sm text-muted-foreground">Content Score</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <Button disabled data-testid="button-get-analysis">
-              <Zap className="h-4 w-4 mr-2" />
-              Get AI Analysis
-            </Button>
-            <Button variant="outline" disabled data-testid="button-view-history">
-              <LineChart className="h-4 w-4 mr-2" />
-              View History
-            </Button>
-          </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="text-center p-4 rounded-md bg-muted/50" data-testid="stat-content-score">
+                  <p className="text-2xl font-bold">{coaching?.contentScore || 0}</p>
+                  <p className="text-sm text-muted-foreground">Content Score</p>
+                </div>
+                <div className="text-center p-4 rounded-md bg-muted/50" data-testid="stat-total-threads">
+                  <p className="text-2xl font-bold">{coaching?.stats?.totalThreads || 0}</p>
+                  <p className="text-sm text-muted-foreground">Total Threads</p>
+                </div>
+                <div className="text-center p-4 rounded-md bg-muted/50" data-testid="stat-avg-engagement">
+                  <p className="text-2xl font-bold">{coaching?.stats?.avgEngagement || 0}</p>
+                  <p className="text-sm text-muted-foreground">Avg Engagement</p>
+                </div>
+              </div>
+              {coaching && (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="p-4 rounded-md bg-green-500/10 border border-green-500/20">
+                    <p className="text-sm font-medium text-green-700 dark:text-green-400">Top Strength</p>
+                    <p className="text-sm mt-1">{coaching.topStrength}</p>
+                  </div>
+                  <div className="p-4 rounded-md bg-amber-500/10 border border-amber-500/20">
+                    <p className="text-sm font-medium text-amber-700 dark:text-amber-400">Growth Opportunity</p>
+                    <p className="text-sm mt-1">{coaching.topOpportunity}</p>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </CardContent>
       </Card>
 
-      <Card className="mb-8 bg-muted/30 border-dashed" data-testid="card-coaching-preview">
+      <Card className="mb-8" data-testid="card-coaching-tips">
         <CardHeader>
           <div className="flex items-center gap-3 flex-wrap">
             <Lightbulb className="h-5 w-5 text-muted-foreground" />
-            <CardTitle className="text-lg">Latest Coaching Tips</CardTitle>
+            <CardTitle className="text-lg">AI Coaching Tips</CardTitle>
           </div>
           <CardDescription>
-            Personalized recommendations based on your recent content
+            Personalized recommendations based on your content
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {[1, 2, 3].map((num) => (
-              <div 
-                key={num}
-                className="p-4 rounded-md bg-background border border-dashed flex items-start gap-4"
-                data-testid={`tip-row-${num}`}
-              >
-                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0">
-                  <Lightbulb className="h-4 w-4 text-muted-foreground" />
+          {isLoading ? (
+            <div className="space-y-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="p-4 rounded-md bg-muted/50 animate-pulse">
+                  <div className="h-5 bg-muted rounded w-40 mb-2" />
+                  <div className="h-4 bg-muted rounded w-full" />
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm text-muted-foreground italic">
-                    AI coaching tip {num} will appear here...
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Based on your recent threads
-                  </p>
-                </div>
-                <Button size="sm" variant="ghost" disabled data-testid={`button-apply-tip-${num}`}>
-                  <ArrowUpRight className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : coaching?.tips && coaching.tips.length > 0 ? (
+            <div className="space-y-4">
+              {coaching.tips.map((tip, index) => {
+                const Icon = categoryIcons[tip.category] || Lightbulb;
+                return (
+                  <div
+                    key={index}
+                    className="p-4 rounded-md bg-muted/50 flex items-start gap-4"
+                    data-testid={`tip-row-${index}`}
+                  >
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                      <Icon className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="font-medium">{tip.title}</p>
+                        <Badge variant="outline" className="text-xs">
+                          {tip.category}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{tip.tip}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <Lightbulb className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>Create some threads to get personalized coaching tips!</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
       <div className="grid gap-6 md:grid-cols-2">
-        {coachingFeatures.map((feature) => (
-          <Card 
-            key={feature.id}
-            className="relative"
-            data-testid={`card-feature-${feature.id}`}
-          >
-            <CardHeader className="flex flex-row flex-wrap items-start gap-4 space-y-0">
-              <div className="p-3 rounded-md bg-muted">
-                <feature.icon className="h-5 w-5" />
-              </div>
-              <div className="flex-1 space-y-1">
-                <CardTitle className="text-base" data-testid={`text-feature-title-${feature.id}`}>
-                  {feature.title}
-                </CardTitle>
-                <CardDescription data-testid={`text-feature-description-${feature.id}`}>
-                  {feature.description}
-                </CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {feature.features.map((item, index) => (
-                  <Badge 
-                    key={index}
-                    variant="outline"
-                    className="text-muted-foreground"
-                    data-testid={`badge-capability-${feature.id}-${index}`}
-                  >
-                    {item}
-                  </Badge>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+        <Card data-testid="card-feature-performance">
+          <CardHeader className="flex flex-row flex-wrap items-start gap-4 space-y-0">
+            <div className="p-3 rounded-md bg-muted">
+              <LineChart className="h-5 w-5" />
+            </div>
+            <div className="flex-1 space-y-1">
+              <CardTitle className="text-base">Performance Analysis</CardTitle>
+              <CardDescription>
+                Deep dive into your content metrics with AI-powered insights
+              </CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline" className="text-muted-foreground">Engagement patterns</Badge>
+              <Badge variant="outline" className="text-muted-foreground">Best posting times</Badge>
+              <Badge variant="outline" className="text-muted-foreground">Audience insights</Badge>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card data-testid="card-feature-recommendations">
+          <CardHeader className="flex flex-row flex-wrap items-start gap-4 space-y-0">
+            <div className="p-3 rounded-md bg-muted">
+              <Target className="h-5 w-5" />
+            </div>
+            <div className="flex-1 space-y-1">
+              <CardTitle className="text-base">Content Recommendations</CardTitle>
+              <CardDescription>
+                AI suggests topics and formats based on what works
+              </CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline" className="text-muted-foreground">Trending topics</Badge>
+              <Badge variant="outline" className="text-muted-foreground">Format suggestions</Badge>
+              <Badge variant="outline" className="text-muted-foreground">Optimal length</Badge>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="mt-12 p-6 rounded-lg bg-muted/50" data-testid="section-feedback-loop">

@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertVoicePackSchema, insertThreadSchema } from "@shared/schema";
+import { insertVoicePackSchema, insertThreadSchema, insertConnectedAccountSchema, insertAgencyClientSchema, insertClientVoicePackSchema } from "@shared/schema";
 import Anthropic from "@anthropic-ai/sdk";
 
 // Initialize Anthropic client using Replit AI Integrations
@@ -444,7 +444,315 @@ Respond with a JSON object containing:
     }
   });
 
+  // Reply Guy API - Generate contextual replies
+  app.post("/api/reply/generate", async (req, res) => {
+    try {
+      const { tweetContent, replyTone, voicePackId } = req.body;
+
+      if (!tweetContent) {
+        return res.status(400).json({ error: "Tweet content is required" });
+      }
+
+      let voiceContext = "";
+      if (voicePackId) {
+        const voicePack = await storage.getVoicePack(voicePackId);
+        if (voicePack) {
+          voiceContext = `
+Writing Style: ${voicePack.style}
+Voice Description: ${voicePack.description || "No description"}
+${voicePack.writingSamples && voicePack.writingSamples.length > 0 
+  ? `Sample Writings:\n${voicePack.writingSamples.join("\n---\n")}` 
+  : ""}
+          `.trim();
+        }
+      }
+
+      const toneInstructions = getReplyToneInstructions(replyTone || "friendly");
+
+      const systemPrompt = `You are Twin's Reply Guy, an AI that generates authentic, engaging Twitter replies. Your job is to craft replies that feel human and drive meaningful conversations.
+
+${voiceContext ? `USER'S VOICE PROFILE:\n${voiceContext}\n\n` : ""}
+
+REPLY TONE: ${replyTone || "friendly"}
+${toneInstructions}
+
+RULES:
+1. Keep replies under 280 characters
+2. Be authentic - no corporate speak
+3. Add value to the conversation
+4. NO hashtags, NO emojis
+5. Sound like a real person, not a bot
+6. Be respectful and constructive
+7. Match the energy of the original tweet
+
+Generate 3 different reply options with varying approaches.
+
+Respond with a JSON array of 3 reply strings.`;
+
+      const response = await anthropic.messages.create({
+        model: "claude-sonnet-4-5",
+        max_tokens: 1024,
+        messages: [
+          {
+            role: "user",
+            content: `Generate replies to this tweet:\n\n"${tweetContent}"`,
+          },
+        ],
+        system: systemPrompt,
+      });
+
+      const content = response.content[0];
+      if (content.type !== "text") {
+        throw new Error("Unexpected response type");
+      }
+
+      let replies: string[];
+      try {
+        replies = JSON.parse(content.text);
+      } catch {
+        const match = content.text.match(/\[[\s\S]*\]/);
+        if (match) {
+          replies = JSON.parse(match[0]);
+        } else {
+          throw new Error("Failed to parse replies");
+        }
+      }
+
+      res.json({ replies });
+    } catch (error) {
+      console.error("Reply generation error:", error);
+      res.status(500).json({ error: "Failed to generate replies" });
+    }
+  });
+
+  // AI Coach API - Get coaching tips based on threads
+  app.get("/api/coaching/tips", async (req, res) => {
+    try {
+      const threads = await storage.getThreads(DEMO_USER_ID);
+      const analyticsData = await storage.getAnalytics(DEMO_USER_ID);
+
+      // Calculate summary stats
+      const totalThreads = threads.length;
+      const totalEngagement = analyticsData.reduce((sum, a) => 
+        sum + (a.likes || 0) + (a.replies || 0) + (a.retweets || 0), 0);
+      const avgEngagement = totalThreads > 0 ? Math.round(totalEngagement / totalThreads) : 0;
+
+      // Generate AI coaching tips
+      const systemPrompt = `You are Twin's AI Coach, providing personalized content advice to help creators improve their Twitter threads and grow their audience.
+
+Based on the user's content history, provide 3 specific, actionable coaching tips.
+
+RULES:
+1. Be specific and actionable - not generic advice
+2. Focus on what they can improve immediately
+3. Reference patterns from successful threads
+4. Keep each tip concise (1-2 sentences)
+5. Be encouraging but honest
+
+Respond with a JSON object:
+{
+  "tips": [
+    {"title": "short title", "tip": "the actionable advice", "category": "hooks|engagement|voice|timing"}
+  ],
+  "contentScore": number between 1-100,
+  "topStrength": "what they're doing well",
+  "topOpportunity": "biggest area for improvement"
+}`;
+
+      const response = await anthropic.messages.create({
+        model: "claude-sonnet-4-5",
+        max_tokens: 1024,
+        messages: [
+          {
+            role: "user",
+            content: `User has ${totalThreads} threads with average engagement of ${avgEngagement}. Recent thread topics: ${threads.slice(0, 5).map(t => t.topic).join(", ") || "No threads yet"}`,
+          },
+        ],
+        system: systemPrompt,
+      });
+
+      const content = response.content[0];
+      if (content.type !== "text") {
+        throw new Error("Unexpected response type");
+      }
+
+      let result;
+      try {
+        result = JSON.parse(content.text);
+      } catch {
+        const match = content.text.match(/\{[\s\S]*\}/);
+        if (match) {
+          result = JSON.parse(match[0]);
+        } else {
+          throw new Error("Failed to parse coaching tips");
+        }
+      }
+
+      res.json({
+        tips: result.tips || [],
+        contentScore: result.contentScore || 50,
+        topStrength: result.topStrength || "Getting started",
+        topOpportunity: result.topOpportunity || "Create more content",
+        stats: {
+          totalThreads,
+          avgEngagement,
+          totalEngagement,
+        },
+      });
+    } catch (error) {
+      console.error("Coaching error:", error);
+      res.status(500).json({ error: "Failed to get coaching tips" });
+    }
+  });
+
+  // Connected Accounts API
+  app.get("/api/connected-accounts", async (req, res) => {
+    try {
+      const accounts = await storage.getConnectedAccounts(DEMO_USER_ID);
+      res.json(accounts);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch connected accounts" });
+    }
+  });
+
+  app.post("/api/connected-accounts/connect", async (req, res) => {
+    try {
+      const { platform, platformUsername } = req.body;
+      
+      if (!platform) {
+        return res.status(400).json({ error: "Platform is required" });
+      }
+
+      const account = await storage.upsertConnectedAccount({
+        userId: DEMO_USER_ID,
+        platform,
+        platformUsername: platformUsername || null,
+        isConnected: true,
+        connectedAt: new Date(),
+      });
+
+      res.json(account);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to connect account" });
+    }
+  });
+
+  app.post("/api/connected-accounts/disconnect", async (req, res) => {
+    try {
+      const { platform } = req.body;
+      
+      if (!platform) {
+        return res.status(400).json({ error: "Platform is required" });
+      }
+
+      await storage.disconnectAccount(DEMO_USER_ID, platform);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to disconnect account" });
+    }
+  });
+
+  // Agency Clients API
+  app.get("/api/agency/clients", async (req, res) => {
+    try {
+      const clients = await storage.getAgencyClients(DEMO_USER_ID);
+      
+      // Get voice pack counts for each client
+      const clientsWithPacks = await Promise.all(
+        clients.map(async (client) => {
+          const packs = await storage.getClientVoicePacks(client.id);
+          return { ...client, voicePackCount: packs.length };
+        })
+      );
+      
+      res.json(clientsWithPacks);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch agency clients" });
+    }
+  });
+
+  app.post("/api/agency/clients", async (req, res) => {
+    try {
+      const validated = insertAgencyClientSchema.parse({
+        ...req.body,
+        userId: DEMO_USER_ID,
+      });
+      const client = await storage.createAgencyClient(validated);
+      res.json(client);
+    } catch (error) {
+      res.status(400).json({ error: "Invalid client data" });
+    }
+  });
+
+  app.patch("/api/agency/clients/:id", async (req, res) => {
+    try {
+      const client = await storage.updateAgencyClient(req.params.id, req.body);
+      if (!client) {
+        return res.status(404).json({ error: "Client not found" });
+      }
+      res.json(client);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update client" });
+    }
+  });
+
+  app.delete("/api/agency/clients/:id", async (req, res) => {
+    try {
+      await storage.deleteAgencyClient(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete client" });
+    }
+  });
+
+  // Client Voice Pack Assignments
+  app.get("/api/agency/clients/:clientId/voice-packs", async (req, res) => {
+    try {
+      const assignments = await storage.getClientVoicePacks(req.params.clientId);
+      res.json(assignments);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch client voice packs" });
+    }
+  });
+
+  app.post("/api/agency/clients/:clientId/voice-packs", async (req, res) => {
+    try {
+      const { voicePackId } = req.body;
+      if (!voicePackId) {
+        return res.status(400).json({ error: "Voice pack ID is required" });
+      }
+
+      const assignment = await storage.assignVoicePackToClient({
+        clientId: req.params.clientId,
+        voicePackId,
+      });
+      res.json(assignment);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to assign voice pack" });
+    }
+  });
+
+  app.delete("/api/agency/clients/:clientId/voice-packs/:voicePackId", async (req, res) => {
+    try {
+      await storage.unassignVoicePackFromClient(req.params.clientId, req.params.voicePackId);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to unassign voice pack" });
+    }
+  });
+
   return httpServer;
+}
+
+function getReplyToneInstructions(tone: string): string {
+  const instructions: Record<string, string> = {
+    friendly: "Be warm, approachable, and conversational. Use casual language.",
+    witty: "Be clever and playful. Add a touch of humor without being mean.",
+    professional: "Be polished and insightful. Focus on adding value and expertise.",
+    supportive: "Be encouraging and empathetic. Validate their point and add positivity.",
+    curious: "Ask thoughtful follow-up questions. Show genuine interest in their perspective.",
+  };
+  return instructions[tone] || instructions.friendly;
 }
 
 function getFormatInstructions(format: string): string {

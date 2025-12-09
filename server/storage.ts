@@ -1,12 +1,15 @@
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 import {
-  users, voicePacks, threads, analytics, hooks,
+  users, voicePacks, threads, analytics, hooks, connectedAccounts, agencyClients, clientVoicePacks,
   type User, type InsertUser,
   type VoicePack, type InsertVoicePack,
   type Thread, type InsertThread,
   type Analytics, type InsertAnalytics,
   type Hook, type InsertHook,
+  type ConnectedAccount, type InsertConnectedAccount,
+  type AgencyClient, type InsertAgencyClient,
+  type ClientVoicePack, type InsertClientVoicePack,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -40,6 +43,24 @@ export interface IStorage {
   getHooks(): Promise<Hook[]>;
   getHooksByCategory(category: string): Promise<Hook[]>;
   createHook(hook: InsertHook): Promise<Hook>;
+
+  // Connected Accounts
+  getConnectedAccounts(userId: string): Promise<ConnectedAccount[]>;
+  getConnectedAccount(userId: string, platform: string): Promise<ConnectedAccount | undefined>;
+  upsertConnectedAccount(account: InsertConnectedAccount): Promise<ConnectedAccount>;
+  disconnectAccount(userId: string, platform: string): Promise<void>;
+
+  // Agency Clients
+  getAgencyClients(userId: string): Promise<AgencyClient[]>;
+  getAgencyClient(id: string): Promise<AgencyClient | undefined>;
+  createAgencyClient(client: InsertAgencyClient): Promise<AgencyClient>;
+  updateAgencyClient(id: string, client: Partial<InsertAgencyClient>): Promise<AgencyClient | undefined>;
+  deleteAgencyClient(id: string): Promise<void>;
+
+  // Client Voice Pack Assignments
+  getClientVoicePacks(clientId: string): Promise<ClientVoicePack[]>;
+  assignVoicePackToClient(assignment: InsertClientVoicePack): Promise<ClientVoicePack>;
+  unassignVoicePackFromClient(clientId: string, voicePackId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -165,6 +186,82 @@ export class DatabaseStorage implements IStorage {
   async createHook(hook: InsertHook): Promise<Hook> {
     const [created] = await db.insert(hooks).values(hook).returning();
     return created;
+  }
+
+  // Connected Accounts
+  async getConnectedAccounts(userId: string): Promise<ConnectedAccount[]> {
+    return db.select().from(connectedAccounts).where(eq(connectedAccounts.userId, userId));
+  }
+
+  async getConnectedAccount(userId: string, platform: string): Promise<ConnectedAccount | undefined> {
+    const results = await db.select().from(connectedAccounts)
+      .where(eq(connectedAccounts.userId, userId));
+    return results.find(a => a.platform === platform);
+  }
+
+  async upsertConnectedAccount(account: InsertConnectedAccount): Promise<ConnectedAccount> {
+    const existing = await this.getConnectedAccount(account.userId, account.platform);
+    if (existing) {
+      const [updated] = await db.update(connectedAccounts)
+        .set(account)
+        .where(eq(connectedAccounts.id, existing.id))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(connectedAccounts).values(account).returning();
+    return created;
+  }
+
+  async disconnectAccount(userId: string, platform: string): Promise<void> {
+    const account = await this.getConnectedAccount(userId, platform);
+    if (account) {
+      await db.update(connectedAccounts)
+        .set({ isConnected: false, platformUsername: null })
+        .where(eq(connectedAccounts.id, account.id));
+    }
+  }
+
+  // Agency Clients
+  async getAgencyClients(userId: string): Promise<AgencyClient[]> {
+    return db.select().from(agencyClients).where(eq(agencyClients.userId, userId));
+  }
+
+  async getAgencyClient(id: string): Promise<AgencyClient | undefined> {
+    const [client] = await db.select().from(agencyClients).where(eq(agencyClients.id, id));
+    return client;
+  }
+
+  async createAgencyClient(client: InsertAgencyClient): Promise<AgencyClient> {
+    const [created] = await db.insert(agencyClients).values(client).returning();
+    return created;
+  }
+
+  async updateAgencyClient(id: string, client: Partial<InsertAgencyClient>): Promise<AgencyClient | undefined> {
+    const [updated] = await db.update(agencyClients).set(client).where(eq(agencyClients.id, id)).returning();
+    return updated;
+  }
+
+  async deleteAgencyClient(id: string): Promise<void> {
+    await db.delete(clientVoicePacks).where(eq(clientVoicePacks.clientId, id));
+    await db.delete(agencyClients).where(eq(agencyClients.id, id));
+  }
+
+  // Client Voice Pack Assignments
+  async getClientVoicePacks(clientId: string): Promise<ClientVoicePack[]> {
+    return db.select().from(clientVoicePacks).where(eq(clientVoicePacks.clientId, clientId));
+  }
+
+  async assignVoicePackToClient(assignment: InsertClientVoicePack): Promise<ClientVoicePack> {
+    const [created] = await db.insert(clientVoicePacks).values(assignment).returning();
+    return created;
+  }
+
+  async unassignVoicePackFromClient(clientId: string, voicePackId: string): Promise<void> {
+    const assignments = await this.getClientVoicePacks(clientId);
+    const toDelete = assignments.find(a => a.voicePackId === voicePackId);
+    if (toDelete) {
+      await db.delete(clientVoicePacks).where(eq(clientVoicePacks.id, toDelete.id));
+    }
   }
 }
 

@@ -86,3 +86,45 @@ export const sessions = pgTable("sessions", {
   sess: jsonb("sess").notNull(),
   expire: timestamp("expire").notNull(),
 });
+
+// Connected accounts - social platform connections
+export const connectedAccounts = pgTable("connected_accounts", {
+  id: varchar("id", { length: 255 }).primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 255 }).notNull().references(() => users.id),
+  platform: text("platform").notNull(), // twitter, linkedin, threads, bluesky
+  platformUsername: text("platform_username"),
+  isConnected: boolean("is_connected").default(false),
+  connectedAt: timestamp("connected_at"),
+});
+
+export const insertConnectedAccountSchema = createInsertSchema(connectedAccounts).omit({ id: true });
+export type InsertConnectedAccount = z.infer<typeof insertConnectedAccountSchema>;
+export type ConnectedAccount = typeof connectedAccounts.$inferSelect;
+
+// Agency clients - for managing multiple client voice profiles
+export const agencyClients = pgTable("agency_clients", {
+  id: varchar("id", { length: 255 }).primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 255 }).notNull().references(() => users.id),
+  clientName: text("client_name").notNull(),
+  clientEmail: text("client_email"),
+  clientLogo: text("client_logo"),
+  notes: text("notes"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertAgencyClientSchema = createInsertSchema(agencyClients).omit({ id: true, createdAt: true });
+export type InsertAgencyClient = z.infer<typeof insertAgencyClientSchema>;
+export type AgencyClient = typeof agencyClients.$inferSelect;
+
+// Client voice pack assignments
+export const clientVoicePacks = pgTable("client_voice_packs", {
+  id: varchar("id", { length: 255 }).primaryKey().default(sql`gen_random_uuid()`),
+  clientId: varchar("client_id", { length: 255 }).notNull().references(() => agencyClients.id),
+  voicePackId: varchar("voice_pack_id", { length: 255 }).notNull().references(() => voicePacks.id),
+  assignedAt: timestamp("assigned_at").defaultNow(),
+});
+
+export const insertClientVoicePackSchema = createInsertSchema(clientVoicePacks).omit({ id: true, assignedAt: true });
+export type InsertClientVoicePack = z.infer<typeof insertClientVoicePackSchema>;
+export type ClientVoicePack = typeof clientVoicePacks.$inferSelect;
