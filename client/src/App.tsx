@@ -17,6 +17,7 @@ import Schedule from "@/pages/schedule";
 import Analytics from "@/pages/analytics";
 import Pricing from "@/pages/pricing";
 import Connect from "@/pages/connect";
+import Images from "@/pages/images";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -31,6 +32,7 @@ function Router() {
       <Route path="/analytics" component={Analytics} />
       <Route path="/pricing" component={Pricing} />
       <Route path="/connect" component={Connect} />
+      <Route path="/images" component={Images} />
       <Route component={NotFound} />
     </Switch>
   );

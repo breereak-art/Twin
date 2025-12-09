@@ -1,4 +1,4 @@
-import { Home, Mic2, FileText, Shuffle, Repeat, Calendar, BarChart3, Settings, Sparkles, CreditCard, Link2 } from "lucide-react";
+import { Home, Mic2, FileText, Shuffle, Repeat, Calendar, BarChart3, Settings, Sparkles, CreditCard, Link2, ImageIcon } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -24,6 +24,7 @@ const menuItems = [
   { title: "Analytics", url: "/analytics", icon: BarChart3 },
   { title: "Pricing", url: "/pricing", icon: CreditCard },
   { title: "Connect", url: "/connect", icon: Link2 },
+  { title: "Images", url: "/images", icon: ImageIcon },
 ];
 
 export function AppSidebar() {
