@@ -44,10 +44,8 @@ export default function VoicePacks() {
 
   const createMutation = useMutation({
     mutationFn: async (data: { name: string; description: string; style: string; writingSamples: string[] }) => {
-      return apiRequest("/api/voice-packs", {
-        method: "POST",
-        body: JSON.stringify(data),
-      });
+      const response = await apiRequest("POST", "/api/voice-packs", data);
+      return await response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/voice-packs"] });
@@ -62,7 +60,7 @@ export default function VoicePacks() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      return apiRequest(`/api/voice-packs/${id}`, { method: "DELETE" });
+      await apiRequest("DELETE", `/api/voice-packs/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/voice-packs"] });

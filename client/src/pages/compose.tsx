@@ -37,11 +37,8 @@ export default function Compose() {
 
   const generateMutation = useMutation({
     mutationFn: async (data: { topic: string; hookType: string; voicePackId?: string }) => {
-      const response = await apiRequest("/api/threads/generate", {
-        method: "POST",
-        body: JSON.stringify(data),
-      });
-      return response as { content: string[]; cringeScore: number };
+      const response = await apiRequest("POST", "/api/threads/generate", data);
+      return await response.json() as { content: string[]; cringeScore: number };
     },
     onSuccess: (data) => {
       setGeneratedContent(data.content);
@@ -55,10 +52,8 @@ export default function Compose() {
 
   const saveMutation = useMutation({
     mutationFn: async (data: { topic: string; hookType: string; content: string[]; cringeScore: number; voicePackId?: string }) => {
-      return apiRequest("/api/threads", {
-        method: "POST",
-        body: JSON.stringify({ ...data, status: "draft" }),
-      });
+      const response = await apiRequest("POST", "/api/threads", { ...data, status: "draft" });
+      return await response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/threads"] });
