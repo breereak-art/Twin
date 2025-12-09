@@ -2,26 +2,28 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertVoicePackSchema, insertThreadSchema, insertConnectedAccountSchema, insertAgencyClientSchema, insertClientVoicePackSchema } from "@shared/schema";
-import { AgentBuilder } from "@iqai/adk";
+import Anthropic from "@anthropic-ai/sdk";
 
-// Configure ADK to use Replit AI Integrations
-if (process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY && !process.env.ANTHROPIC_API_KEY) {
-  process.env.ANTHROPIC_API_KEY = process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
-}
-if (process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL && !process.env.ANTHROPIC_BASE_URL) {
-  process.env.ANTHROPIC_BASE_URL = process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL;
-}
+// Using Replit's AI Integrations for Anthropic access
+const anthropic = new Anthropic({
+  apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
+  baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
+});
 
-// Helper function to call AI using ADK AgentBuilder
+// Helper function to call AI using Anthropic SDK
 async function callAI(systemPrompt: string, userMessage: string): Promise<string> {
-  const { runner } = await AgentBuilder
-    .create("twin-ai")
-    .withModel("claude-sonnet-4-5")
-    .withInstruction(systemPrompt)
-    .build();
+  const message = await anthropic.messages.create({
+    model: "claude-sonnet-4-5",
+    max_tokens: 8192,
+    system: systemPrompt,
+    messages: [{ role: "user", content: userMessage }],
+  });
   
-  const result = await runner.runAsync({ userId: "system", message: userMessage });
-  return result || "";
+  const content = message.content[0];
+  if (content.type === "text") {
+    return content.text;
+  }
+  return "";
 }
 
 // Demo user ID for development (before auth is fully implemented)
