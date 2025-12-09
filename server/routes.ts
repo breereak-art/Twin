@@ -27,10 +27,27 @@ async function callAI(systemPrompt: string, userMessage: string): Promise<string
 // Demo user ID for development (before auth is fully implemented)
 const DEMO_USER_ID = "demo-user";
 
+// Ensure demo user exists on startup
+async function ensureDemoUser() {
+  const existingUser = await storage.getUser(DEMO_USER_ID);
+  if (!existingUser) {
+    await storage.upsertUser({
+      id: DEMO_USER_ID,
+      email: "demo@twin.app",
+      firstName: "Demo",
+      lastName: "User",
+    });
+    console.log("Created demo user for development");
+  }
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+
+  // Ensure demo user exists for development
+  await ensureDemoUser();
 
   // Voice Packs API
   app.get("/api/voice-packs", async (req, res) => {
